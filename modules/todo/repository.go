@@ -6,11 +6,12 @@ import "gorm.io/gorm"
 type (
 	IRepository interface {
 		FindAll() ([]*Todo, error)
-		FindBy(todoCond *Todo) (*Todo, error)
-		FindByID(id int) (*Todo, error)
-		Save(todo *Todo) (*Todo, error)
-		Update(todo *Todo) (*Todo, error)
-		Delete(id int) error
+		FindAllByUserID(int) ([]*Todo, error)
+		FindBy(*Todo) (*Todo, error)
+		FindByID(int) (*Todo, error)
+		Save(*Todo) (*Todo, error)
+		Update(*Todo) (*Todo, error)
+		Delete(int) error
 	}
 
 	repository struct {
@@ -27,6 +28,16 @@ func (r *repository) FindAll() ([]*Todo, error) {
 	var todos []*Todo
 
 	if err := r.db.Find(&todos).Error; err != nil {
+		return nil, err
+	}
+
+	return todos, nil
+}
+
+func (r *repository) FindAllByUserID(userID int) ([]*Todo, error) {
+	var todos []*Todo
+
+	if err := r.db.Where("user_id = ?", userID).Find(&todos).Error; err != nil {
 		return nil, err
 	}
 

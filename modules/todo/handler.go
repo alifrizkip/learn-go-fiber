@@ -2,6 +2,7 @@ package todo
 
 import (
 	"learn-go-fiber/helper"
+	"learn-go-fiber/modules/user"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
@@ -16,7 +17,9 @@ func newHandler(service IService) *handler {
 }
 
 func (h *handler) GetAllTodos(c *fiber.Ctx) error {
-	todos, err := h.service.GetAllTodos()
+	currentUser := c.Locals("current_user").(*user.User)
+
+	todos, err := h.service.GetTodosByUserID(currentUser.ID)
 	if err != nil {
 		return helper.SendAPIResponse(c)("Failed to get todos data", fiber.StatusBadRequest, false, nil)
 	}
@@ -25,9 +28,14 @@ func (h *handler) GetAllTodos(c *fiber.Ctx) error {
 }
 
 func (h *handler) GetTodoDetail(c *fiber.Ctx) error {
+	currentUser := c.Locals("current_user").(*user.User)
 	id, _ := strconv.Atoi(c.Params("id"))
-	todo, err := h.service.GetATodo(id)
+	todo, err := h.service.GetATodo(&Todo{ID: id, UserID: currentUser.ID})
 	if err != nil {
+		if err.Error() == "record not found" {
+			return helper.SendAPIResponse(c)("Todo not found", fiber.StatusNotFound, false, nil)
+		}
+
 		return helper.SendAPIResponse(c)("Failed to get todo data", fiber.StatusBadRequest, false, nil)
 	}
 
@@ -35,6 +43,8 @@ func (h *handler) GetTodoDetail(c *fiber.Ctx) error {
 }
 
 func (h *handler) CreateNewTodo(c *fiber.Ctx) error {
+	currentUser := c.Locals("current_user").(*user.User)
+
 	todoInput := new(createTodoInput)
 	if err := c.BodyParser(todoInput); err != nil {
 		if err != nil {
@@ -47,7 +57,7 @@ func (h *handler) CreateNewTodo(c *fiber.Ctx) error {
 		return helper.SendAPIResponse(c)("Failed to validate todo data", fiber.StatusUnprocessableEntity, false, errors)
 	}
 
-	todo, err := h.service.CreateTodo(todoInput)
+	todo, err := h.service.CreateTodo(todoInput, currentUser.ID)
 	if err != nil {
 		return helper.SendAPIResponse(c)("Failed to create new todo", fiber.StatusBadRequest, false, nil)
 	}
@@ -56,8 +66,18 @@ func (h *handler) CreateNewTodo(c *fiber.Ctx) error {
 }
 
 func (h *handler) CompleteTodo(c *fiber.Ctx) error {
+	currentUser := c.Locals("current_user").(*user.User)
 	id, _ := strconv.Atoi(c.Params("id"))
-	todo, err := h.service.CompleteTodo(id)
+	todo, err := h.service.GetATodo(&Todo{ID: id, UserID: currentUser.ID})
+	if err != nil {
+		if err.Error() == "record not found" {
+			return helper.SendAPIResponse(c)("Todo not found", fiber.StatusNotFound, false, nil)
+		}
+
+		return helper.SendAPIResponse(c)("Failed to get todo data", fiber.StatusBadRequest, false, nil)
+	}
+
+	todo, err = h.service.CompleteTodo(id)
 	if err != nil {
 		return helper.SendAPIResponse(c)("Failed to complete todo", fiber.StatusBadRequest, false, nil)
 	}
@@ -66,8 +86,18 @@ func (h *handler) CompleteTodo(c *fiber.Ctx) error {
 }
 
 func (h *handler) DeleteTodo(c *fiber.Ctx) error {
+	currentUser := c.Locals("current_user").(*user.User)
 	id, _ := strconv.Atoi(c.Params("id"))
-	err := h.service.DeleteTodo(id)
+	_, err := h.service.GetATodo(&Todo{ID: id, UserID: currentUser.ID})
+	if err != nil {
+		if err.Error() == "record not found" {
+			return helper.SendAPIResponse(c)("Todo not found", fiber.StatusNotFound, false, nil)
+		}
+
+		return helper.SendAPIResponse(c)("Failed to get todo data", fiber.StatusBadRequest, false, nil)
+	}
+
+	err = h.service.DeleteTodo(id)
 	if err != nil {
 		return helper.SendAPIResponse(c)("Failed to delete todo", fiber.StatusBadRequest, false, nil)
 	}
